@@ -82,7 +82,7 @@ jobs:
         run: |
           bash ./.github/protoc.sh
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
 
@@ -169,7 +169,7 @@ jobs:
         run: |
           bash ./.github/protoc.sh
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
 
