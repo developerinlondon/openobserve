@@ -1,0 +1,37 @@
+# syntax=docker/dockerfile:1
+FROM node:22-bookworm AS webbuilder
+WORKDIR /web
+COPY ./web /web/
+
+RUN npm install
+ENV CI=true
+ENV BROWSER=none
+RUN sed -i 's/open: true/open: false/g' vite.config.ts && \
+    NODE_OPTIONS="--max-old-space-size=8192" npm run build
+
+FROM rust:1.84-bookworm AS builder
+
+RUN apt-get update && apt-get install -y protobuf-compiler cmake
+
+WORKDIR /openobserve
+COPY . /openobserve
+COPY --from=webbuilder /web/dist web/dist
+
+RUN rustup default nightly-2025-01-11
+ENV CARGO_BUILD_JOBS=2
+ENV CARGO_INCREMENTAL=0
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/openobserve/target \
+    cargo build --release --features mimalloc -j 2 \
+    && cp /openobserve/target/release/openobserve /openobserve/openobserve-bin
+
+FROM debian:bookworm-slim AS runtime
+LABEL org.opencontainers.image.source="https://github.com/developerinlondon/openobserve"
+LABEL org.opencontainers.image.description="OpenObserve with trusted proxy authentication support"
+LABEL org.opencontainers.image.licenses="AGPL-3.0"
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl
+RUN update-ca-certificates
+COPY --from=builder /openobserve/openobserve-bin /openobserve
+RUN chmod +x /openobserve
+RUN ["/openobserve", "init-dir", "-p", "/data/"]
+CMD ["/openobserve"]
